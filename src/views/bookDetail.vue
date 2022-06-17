@@ -16,24 +16,46 @@
         <button class="btn-style" @click="confirmBuy">购买</button>
       </div>
     </div>
+    <ion-toast
+      :is-open="isOpenRef"
+      :message="toastMessage"
+      :duration="1000"
+      position="middle"
+      @didDismiss="setOpen(false)"
+      color="warning"
+    >
+    </ion-toast>
   </ion-page>
 </template>
 
 <script lang="ts">
 import { defineComponent, ref } from "vue";
-import { IonPage, alertController } from "@ionic/vue";
+import { IonPage, alertController, IonToast } from "@ionic/vue";
+import data from "./../store/index";
 
 export default defineComponent({
   name: "bookDetail",
   components: {
     IonPage,
+    IonToast,
   },
   setup() {
     return {
       isOpenRef: ref(false),
       buttons: ["取消", "确认"],
       book_id: ref(""),
-      bookInfo: ref({}),
+      bookInfo: ref({
+        book_freight: ref(),
+        book_id: ref(),
+        book_img: ref(),
+        book_introduction: ref(),
+        book_name: ref(),
+        book_num: ref(),
+        book_price: ref(),
+        is_deleted: ref(),
+        user_id: ref(),
+      }),
+      toastMessage: ref(""),
     };
   },
   mounted() {
@@ -66,9 +88,14 @@ export default defineComponent({
       this.isOpenRef = state;
     },
     confirmBuy() {
-      this.presentAlertConfirm();
+      if (data.isLogin) this.presentAlertConfirm();
+      else {
+        this.toastMessage = "请先登录";
+        this.setOpen(true);
+      }
     },
     async presentAlertConfirm() {
+      var that = this;
       const alert = await alertController.create({
         header: "提醒",
         message: "确认购买本商品？",
@@ -84,6 +111,54 @@ export default defineComponent({
             id: "confirm-button",
             handler: () => {
               //发送购买请求
+              var that = this;
+              //console.log(event.target.id);
+              //步骤一:创建异步对象
+              var ajax = new XMLHttpRequest();
+              //步骤二:设置请求的url参数,参数一是请求的类型,参数二是请求的url,可以带参数,动态的传递参数starName到服务端
+              ajax.open(
+                "get",
+                "http://42.192.250.118:9000/bookstore/ordermanagement/buy?" +
+                  "book_id=" +
+                  this.bookInfo.book_id +
+                  "&" +
+                  "book_name=" +
+                  this.bookInfo.book_name +
+                  "&" +
+                  "buyer_id=" +
+                  data.userData.user_id +
+                  "&" +
+                  "buyer_name=" +
+                  data.userData.user_name +
+                  "&" +
+                  "order_price=" +
+                  this.bookInfo.book_price +
+                  "&" +
+                  "seller_id=" +
+                  this.bookInfo.user_id +
+                  "&" +
+                  "order_freight=" +
+                  this.bookInfo.book_freight +
+                  "&"
+              );
+              //步骤三:发送请求
+              ajax.send();
+              //步骤四:注册事件 onreadystatechange 状态改变就会调用
+              ajax.onreadystatechange = function () {
+                if (ajax.readyState == 4 && ajax.status == 200) {
+                  var result = JSON.parse(ajax.responseText);
+                  console.log(result);
+                  if (result.message == "success") {
+                    that.toastMessage = "购买成功";
+                    that.setOpen(true);
+                    that.$forceUpdate();
+                  } else {
+                    that.toastMessage = "已卖空";
+                    that.setOpen(true);
+                    that.$forceUpdate();
+                  }
+                }
+              };
             },
           },
         ],
